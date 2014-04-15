@@ -9,7 +9,7 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.util.AttributeSet;
-import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 
 import org.joda.time.DateTime;
@@ -58,8 +58,13 @@ public class DayView extends View {
      */
     private List<Event> mEvents = new ArrayList<>();
     private List<Event> mAllDayEvents = new ArrayList<>();
-
     private List<EventView> mEventViews = new ArrayList<>();
+
+    private Event mSelectedEvent;
+
+    // Dates
+    private DateTime mDay = new DateTime("2014-04-12T00:00:00.000+01:00");
+    private DateTime mNow = new DateTime();
 
     /**
      * Drawing stuff
@@ -93,11 +98,12 @@ public class DayView extends View {
     // Typefaces
     protected Typeface mRobotoLight;
 
+
+
     /**
-     * Data
+     * Listeners
      */
-    private DateTime mDay = new DateTime("2014-04-12T00:00:00.000+01:00");
-    private DateTime mNow = new DateTime();
+    private OnEventSelectedListener mEventSelectedListener;
 
     public DayView(Context context) {
         super(context);
@@ -322,26 +328,21 @@ public class DayView extends View {
     }
 
     private void drawEvent(Event event, Rect rect, Canvas canvas, Paint paint) {
-        Log.i(TAG, "Drawing event: " + event.getTitle());
-
-        DateTime start = event.getStart();
-        DateTime end = event.getEnd();
-
-        int startMinute = start.getMinuteOfDay();
-        int endMinute = end.getMinuteOfDay();
-
-        int startY = (int) getYForMinute(startMinute);
-        int stopY = (int) getYForMinute(endMinute);
-
-        Rect bounds = new Rect(getStageLeft(), startY, getStageRight(), stopY);
-
         // Save the previous style
         Paint.Style savedStyle = paint.getStyle();
 
         Paint bgPaint = new Paint();
 
+        // Darken the background colour if selected
+        int backgroundColour = event.equals(mSelectedEvent)
+                ? ColorUtils.darken(event.getColor(), 0.8f)
+                : event.getColor();
+
         bgPaint.setStyle(Paint.Style.FILL);
-        bgPaint.setColor(event.getColor());
+        bgPaint.setColor(backgroundColour);
+
+        // Get the event bounds
+        Rect bounds = computeEventBounds(event);
 
         // Draw the background onto our canvas
         canvas.drawRect(bounds, bgPaint);
@@ -368,6 +369,19 @@ public class DayView extends View {
 
         // Restore the style
         paint.setStyle(savedStyle);
+    }
+
+    private Rect computeEventBounds(Event event) {
+        DateTime start = event.getStart();
+        DateTime end = event.getEnd();
+
+        int startMinute = start.getMinuteOfDay();
+        int endMinute = end.getMinuteOfDay();
+
+        int startY = (int) getYForMinute(startMinute);
+        int stopY = (int) getYForMinute(endMinute);
+
+        return new Rect(getStageLeft(), startY, getStageRight(), stopY);
     }
 
     private float getYForMinute(int minute) {
@@ -415,4 +429,57 @@ public class DayView extends View {
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
 
     }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        int action = event.getAction();
+
+        switch (action) {
+
+            case MotionEvent.ACTION_DOWN:
+                return true;
+
+            case MotionEvent.ACTION_UP:
+                mSelectedEvent = findEventFromPosition(Math.round(event.getX()), Math.round(event.getY()));
+
+                if (mSelectedEvent != null) {
+                    dispatchEventSelected(mSelectedEvent);
+                }
+
+                invalidate();
+
+                return true;
+
+        }
+
+        return super.onTouchEvent(event);
+    }
+
+    private Event findEventFromPosition(int x, int y) {
+        for (Event event : mEvents) {
+            Rect bounds = computeEventBounds(event);
+
+            if (bounds.contains(x, y)) {
+                return event;
+            }
+        }
+
+        return null;
+    }
+
+    protected void dispatchEventSelected(Event event) {
+        if (mEventSelectedListener == null)
+            return;
+
+        mEventSelectedListener.onEventSelected(this, event);
+    }
+
+    public void setOnEventSelectedListener(OnEventSelectedListener listener) {
+        mEventSelectedListener = listener;
+    }
+
+    public interface OnEventSelectedListener {
+        public void onEventSelected(DayView view, Event event);
+    }
+
 }
