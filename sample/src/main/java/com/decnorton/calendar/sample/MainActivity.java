@@ -4,20 +4,36 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Toast;
 
 import com.decnorton.calendar.DayView;
+import com.decnorton.calendar.Event;
 
 
 public class MainActivity extends Activity {
+    private static final String TAG = "MainActivity";
+
+    /**
+     * Views
+     */
+    private DayView mDayView;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        DayView view = new DayView(this);
-    }
+        mDayView = (DayView) findViewById(R.id.day);
+        mDayView.setOnEventSelectedListener(new DayView.OnEventSelectedListener() {
+            @Override
+            public void onEventSelected(DayView view, Event event) {
+                Toast.makeText(MainActivity.this, "Event selected: " + event.getTitle(), Toast.LENGTH_SHORT).show();
+            }
+        });
 
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
