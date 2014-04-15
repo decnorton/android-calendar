@@ -54,4 +54,13 @@ public class Event {
     public DateTime getEnd() {
         return end;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof Event) {
+            return ((Event) o).getId() == id;
+        }
+
+        return super.equals(o);
+    }
 }
