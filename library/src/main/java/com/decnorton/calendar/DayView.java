@@ -13,12 +13,16 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import org.joda.time.DateTime;
+import org.joda.time.Interval;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Created by decnorton on 11/04/2014.
+ *
+ * TODO: Scaling
+ *
  */
 public class DayView extends View {
     private static final String TAG = "DayView";
@@ -49,7 +53,6 @@ public class DayView extends View {
     private static int EVENT_PADDING_LEFT = 4;
     private static int EVENT_PADDING_RIGHT = 4;
 
-
     // Current time
     private static int CURRENT_TIME_WIDTH = 2;
 
@@ -63,8 +66,10 @@ public class DayView extends View {
     private Event mSelectedEvent;
 
     // Dates
-    private DateTime mDay = new DateTime("2014-04-12T00:00:00.000+01:00");
+    private DateTime mDay;
     private DateTime mNow = new DateTime();
+    private Interval mToday;
+
 
     /**
      * Drawing stuff
@@ -91,45 +96,49 @@ public class DayView extends View {
     // Shared among all DayView instances
     protected static int sCellHeight = 0;
 
-
     // Canvas.drawLines() requires takes each line as x0 y0 x1 y1
     private float[] mLines = new float[DAY_HOURS * 4];
 
     // Typefaces
     protected Typeface mRobotoLight;
 
-
-
     /**
      * Listeners
      */
-    private OnEventSelectedListener mEventSelectedListener;
+    private OnEventClickedListener mEventClickedListener;
 
     public DayView(Context context) {
         super(context);
 
-        init(context);
+        init(context, null);
     }
 
     public DayView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        init(context);
+        init(context, null);
         initAttributes(attrs);
     }
 
     public DayView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
 
-        init(context);
+        init(context, null);
         initAttributes(attrs);
     }
 
-    private void init(Context context) {
+    public DayView(Context context, DateTime day) {
+        super(context);
+        init(context, day);
+    }
+
+    private void init(Context context, DateTime date) {
         mContext = context;
+        mDay = date == null ? new DateTime().withTimeAtStartOfDay() : date.withTimeAtStartOfDay();
+
+        calculateTodayInterval();
 
         // getDimension() handles scaling for us
-
         PADDING_TOP = getDimension(R.dimen.day_padding_top);
 
         EVENT_PADDING_TOP = getDimension(R.dimen.day_event_padding_top);
@@ -159,8 +168,6 @@ public class DayView extends View {
                 // Calculate scaled values
             }
         }
-
-        initDebug();
     }
 
     private void initAttributes(AttributeSet attributes) {
@@ -181,29 +188,12 @@ public class DayView extends View {
         }
     }
 
-    private void initDebug() {
-        DateTime[] starts = {
-                new DateTime("2014-04-12T11:00:00.000+01:00"),
-                new DateTime("2014-04-12T13:00:00.000+01:00"),
-                new DateTime("2014-04-12T18:00:00.000+01:00"),
-                new DateTime("2014-04-12T20:00:00.000+01:00")
-        };
-
-        DateTime[] ends = {
-                new DateTime("2014-04-12T11:20:00.000+01:00"),
-                new DateTime("2014-04-12T13:40:00.000+01:00"),
-                new DateTime("2014-04-12T19:00:00.000+01:00"),
-                new DateTime("2014-04-12T20:10:00.000+01:00")
-        };
-
-        for (int i = 0; i < 4; i ++) {
-            Event event = new Event(i, getResources().getColor(R.color.event_blue), "Event #" + i, "Location #" + i, false, starts[i], ends[i]);
-            mEvents.add(event);
-        }
+    public List<Event> getEvents() {
+        return mEvents;
     }
 
-    private void setDay(DateTime day) {
-        mDay = day;
+    public void setEvents(List<Event> events) {
+        mEvents = events;
     }
 
     private int getDimension(int resId) {
@@ -247,6 +237,50 @@ public class DayView extends View {
         return mViewWidth;
     }
 
+    protected int getStageBottom() { return getStageTop() + getStageHeight(); }
+
+    protected Rect getStageBounds() {
+        return new Rect(getStageLeft(), getStageTop(), getStageRight(), getStageBottom());
+    }
+
+    public static int getTimelineWidth() {
+        return TIMELINE_WIDTH;
+    }
+
+    public boolean getShowTimeline() {
+        return mShowTimeline;
+    }
+
+    public void setShowTimeline(boolean showTimeline) {
+        mShowTimeline = showTimeline;
+    }
+
+    public float getTopForHour(int hour) {
+        return getStageTop() + (getStageHeight() * ((float) hour / (float) DAY_HOURS));
+    }
+
+    private float getTopForMinute(int minute) {
+        return getStageTop() + (getStageHeight() * ((float) minute / (float) DAY_MINUTES));
+    }
+
+
+    public DateTime getDate() {
+        return mDay;
+    }
+
+    public void setDate(DateTime date) {
+        this.mDay = date;
+
+        calculateTodayInterval();
+        invalidate();
+    }
+
+    private void calculateTodayInterval() {
+        mToday = mDay != null
+                ? new Interval(mDay, mDay.plusHours(DAY_HOURS))
+                : null;
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -260,29 +294,30 @@ public class DayView extends View {
         drawGridBackground(mRect, canvas, mPaint);
         drawTimeline(mRect, canvas, mPaint);
 
+        // Draw the greyed-out background
+        drawCurrentTimeBackground(mRect, canvas, mPaint);
+
+        // Draw events
         drawEvents(mRect, canvas, mPaint);
 
-        drawCurrentTime(mRect, canvas, mPaint);
+        // Draw a line for the current time
+        drawCurrentTimeLine(mRect, canvas, mPaint);
     }
 
     private void drawGridBackground(Rect rect, Canvas canvas, Paint paint) {
         Paint.Style savedStyle = paint.getStyle();
 
         float x = getStageLeft();
-        float y = getStageTop();
         final float stopX = mViewWidth;
-
-        final float deltaY = sCellHeight + CELL_GAP;
 
         int linesIndex = 0;
         for (int hour = 0; hour < DAY_HOURS; hour++) {
+            float y = getTopForHour(hour);
+
             mLines[linesIndex++] = x; // x0
             mLines[linesIndex++] = y; // y0
             mLines[linesIndex++] = stopX; // x1
             mLines[linesIndex++] = y; // y1
-
-            // Next grid line
-            y += deltaY;
         }
 
         paint.setColor(Color.BLACK);
@@ -308,16 +343,12 @@ public class DayView extends View {
 
         // We're right aligning the text so subtract the right padding
         int x = TIMELINE_WIDTH - TIMELINE_HOUR_PADDING_RIGHT;
-        int y = getStageTop();
-        int deltaY = sCellHeight + CELL_GAP;
 
         for (int hour = 0; hour < DAY_HOURS; hour++) {
             String time = TimeUtils.getHour(hour);
 
             // Centered vertically
-            canvas.drawText(time, x, y + (mTimelineTextHeight / 2), paint);
-
-            y += deltaY;
+            canvas.drawText(time, x, getTopForHour(hour) + (mTimelineTextHeight / 2), paint);
         }
     }
 
@@ -328,6 +359,14 @@ public class DayView extends View {
     }
 
     private void drawEvent(Event event, Rect rect, Canvas canvas, Paint paint) {
+        // Get the event bounds
+        Rect bounds = computeEventBounds(event);
+
+        if (bounds == null) {
+            // Event shouldn't be here
+            return;
+        }
+
         // Save the previous style
         Paint.Style savedStyle = paint.getStyle();
 
@@ -340,9 +379,6 @@ public class DayView extends View {
 
         bgPaint.setStyle(Paint.Style.FILL);
         bgPaint.setColor(backgroundColour);
-
-        // Get the event bounds
-        Rect bounds = computeEventBounds(event);
 
         // Draw the background onto our canvas
         canvas.drawRect(bounds, bgPaint);
@@ -375,35 +411,82 @@ public class DayView extends View {
         DateTime start = event.getStart();
         DateTime end = event.getEnd();
 
-        int startMinute = start.getMinuteOfDay();
-        int endMinute = end.getMinuteOfDay();
+        Interval eventInterval = new Interval(start, end);
 
-        int startY = (int) getYForMinute(startMinute);
-        int stopY = (int) getYForMinute(endMinute);
+        if (!eventInterval.overlaps(mToday)) {
+            return null;
+        }
+
+        int startMinute;
+        int endMinute;
+
+        if (TimeUtils.isSameDay(mDay, start)) {
+            startMinute = start.getMinuteOfDay();
+        } else if (start.isBefore(mDay)) {
+            // Not same day and before now = draw from top
+            startMinute = 0;
+        } else {
+            // Not same day and after now = shouldn't be drawn
+            return null;
+        }
+
+        if (TimeUtils.isSameDay(mDay, end)) {
+            endMinute = end.getMinuteOfDay();
+        } else if (end.isAfter(mDay)) {
+            endMinute = DAY_MINUTES;
+        } else {
+            // Not same day and before now - don't draw
+            return null;
+        }
+
+        int startY = (int) getTopForMinute(startMinute);
+        int stopY = (int) getTopForMinute(endMinute);
 
         return new Rect(getStageLeft(), startY, getStageRight(), stopY);
     }
 
-    private float getYForMinute(int minute) {
-        return getStageTop() + (getStageHeight() * ((float) minute / (float) DAY_MINUTES));
+    private void drawCurrentTimeBackground(Rect rect, Canvas canvas, Paint paint) {
+        boolean isToday = TimeUtils.isSameDay(mNow, mDay);
+
+        if (mDay.isBeforeNow() || isToday) {
+            Paint.Style savedStyle = paint.getStyle();
+
+            // Set the background style
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0x22000000);
+
+            Rect bounds = getStageBounds();
+
+            if (isToday) {
+                // Bottom should go down to the line
+                bounds.bottom = Math.round(getTopForMinute(mNow.getMinuteOfDay()));
+            }
+
+            // Draw the background
+            canvas.drawRect(bounds, paint);
+
+            // Restore the Paint style
+            paint.setStyle(savedStyle);
+        }
     }
 
-    private boolean isDayToday() {
-        return mNow.withTimeAtStartOfDay().equals(mDay.withTimeAtStartOfDay());
-    }
-
-    private void drawCurrentTime(Rect rect, Canvas canvas, Paint paint) {
-        if (!isDayToday())
-            return;
+    private void drawCurrentTimeLine(Rect rect, Canvas canvas, Paint paint) {
+        boolean isToday = TimeUtils.isSameDay(mNow, mDay);
 
         int x = getStageLeft();
-        float y = getYForMinute(mNow.getMinuteOfDay());
+        int y = Math.round(getTopForMinute(mNow.getMinuteOfDay()));
+
+        if (!isToday) {
+            return;
+        }
 
         Paint.Style savedStyle = paint.getStyle();
 
+        // Set the line style
         paint.setColor(Color.RED);
         paint.setStrokeWidth(CURRENT_TIME_WIDTH);
 
+        // Draw the line
         canvas.drawLine(x, y, mViewWidth, y, paint);
 
         paint.setStyle(savedStyle);
@@ -412,12 +495,15 @@ public class DayView extends View {
     private void setupTimelineTextPaint(Paint paint) {
         paint.setColor(Color.BLACK);
         paint.setTextSize(TIMELINE_TEXT_SIZE);
-        paint.setTypeface(Typeface.DEFAULT);
+        paint.setTypeface(getTimelineTypeface());
         paint.setTextAlign(Paint.Align.RIGHT);
         paint.setAntiAlias(true);
     }
 
     private Typeface getTimelineTypeface() {
+        if (isInEditMode())
+            return Typeface.DEFAULT;
+
         if (mRobotoLight == null) {
             mRobotoLight = Typeface.createFromAsset(mContext.getAssets(), Font.ROBOTO_LIGHT);
         }
@@ -442,9 +528,7 @@ public class DayView extends View {
             case MotionEvent.ACTION_UP:
                 mSelectedEvent = findEventFromPosition(Math.round(event.getX()), Math.round(event.getY()));
 
-                if (mSelectedEvent != null) {
-                    dispatchEventSelected(mSelectedEvent);
-                }
+                dispatchEventClicked(mSelectedEvent);
 
                 invalidate();
 
@@ -459,7 +543,7 @@ public class DayView extends View {
         for (Event event : mEvents) {
             Rect bounds = computeEventBounds(event);
 
-            if (bounds.contains(x, y)) {
+            if (bounds != null && bounds.contains(x, y)) {
                 return event;
             }
         }
@@ -467,18 +551,32 @@ public class DayView extends View {
         return null;
     }
 
-    protected void dispatchEventSelected(Event event) {
-        if (mEventSelectedListener == null)
+    public void setSelectedEvent(Event event) {
+        if (event == mSelectedEvent)
             return;
 
-        mEventSelectedListener.onEventSelected(this, event);
+        // Should allow for multi-day events
+        if (event != null && mEvents.indexOf(event) > -1) {
+            mSelectedEvent = event;
+        } else {
+            mSelectedEvent = null;
+        }
+
+        invalidate();
     }
 
-    public void setOnEventSelectedListener(OnEventSelectedListener listener) {
-        mEventSelectedListener = listener;
+    protected void dispatchEventClicked(Event event) {
+        if (mEventClickedListener == null)
+            return;
+
+        mEventClickedListener.onEventSelected(this, event);
     }
 
-    public interface OnEventSelectedListener {
+    public void setOnEventClickedListener(OnEventClickedListener listener) {
+        mEventClickedListener = listener;
+    }
+
+    public interface OnEventClickedListener {
         public void onEventSelected(DayView view, Event event);
     }
 

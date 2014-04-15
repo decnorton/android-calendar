@@ -1,9 +1,12 @@
 package com.decnorton.calendar;
 
+import org.joda.time.DateTime;
+
 /**
  * Created by decnorton on 12/04/2014.
  */
 public class TimeUtils {
+    private static final String TAG = "TimeUtils";
 
     protected static String[] sHourStrs = {
             "00:00", "1 am", "2 am", "3 am", "4 am", "5 am", "6 am", "7 am", "8 am", "9 am", "10 am", "11 am",
@@ -25,5 +28,12 @@ public class TimeUtils {
         return sHourStrs[hour];
     }
 
+    public static DateTime getFirstDayOfWeek(DateTime date) {
+        return date.withDayOfWeek(1).withTimeAtStartOfDay();
+    }
+
+    public static boolean isSameDay(DateTime left, DateTime right) {
+        return left.withTimeAtStartOfDay().equals(right.withTimeAtStartOfDay());
+    }
 
 }

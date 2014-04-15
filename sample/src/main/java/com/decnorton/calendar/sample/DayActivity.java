@@ -10,36 +10,37 @@ import com.decnorton.calendar.DayView;
 import com.decnorton.calendar.Event;
 
 
-public class MainActivity extends Activity {
-    private static final String TAG = "MainActivity";
+public class DayActivity extends Activity {
+    private static final String TAG = "DayActivity";
 
     /**
      * Views
      */
     private DayView mDayView;
 
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_day);
 
         mDayView = (DayView) findViewById(R.id.day);
-        mDayView.setOnEventSelectedListener(new DayView.OnEventSelectedListener() {
+        mDayView.setOnEventClickedListener(new DayView.OnEventClickedListener() {
             @Override
             public void onEventSelected(DayView view, Event event) {
-                Toast.makeText(MainActivity.this, "Event selected: " + event.getTitle(), Toast.LENGTH_SHORT).show();
+                if (event == null)
+                    return;
+
+                Toast.makeText(DayActivity.this, "Event selected: " + event.getTitle(), Toast.LENGTH_SHORT).show();
             }
         });
-
     }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         
         // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.main, menu);
+        getMenuInflater().inflate(R.menu.day, menu);
         return true;
     }
 
