@@ -3,10 +3,10 @@
 
     <dimen name="current_time_width">2dp</dimen>
 
-    <dimen name="day_padding_top">12dip</dimen>
 
     <dimen name="cell_height">48dip</dimen>
 
+    <dimen name="day_padding_top">8dip</dimen>
     <dimen name="day_event_padding_top">8dip</dimen>
     <dimen name="day_event_padding_bottom">8dip</dimen>
     <dimen name="day_event_padding_left">8dip</dimen>
@@ -19,5 +19,12 @@
     <dimen name="timeline_hour_padding_right">4dip</dimen>
     <dimen name="timeline_width">36dip</dimen>
 
+    <dimen name="event_text_size">12sp</dimen>
+    <dimen name="event_padding">2dip</dimen>
+
+    <dimen name="week_header_day_text_size">12sp</dimen>
+    <dimen name="week_header_day_padding">2dip</dimen>
+
+    <dimen name="week_header_height">18dip</dimen>
 
 </resources>

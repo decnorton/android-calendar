@@ -7,6 +7,7 @@ import android.view.MenuItem;
 import android.widget.Toast;
 
 import com.decnorton.calendar.Event;
+import com.decnorton.calendar.WeekHeaderView;
 import com.decnorton.calendar.WeekView;
 
 import org.joda.time.DateTime;
@@ -21,6 +22,7 @@ public class WeekActivity extends Activity {
     /**
      * Views
      */
+    private WeekHeaderView mWeekHeaderView;
     private WeekView mWeekView;
 
     @Override
@@ -55,6 +57,7 @@ public class WeekActivity extends Activity {
             events.add(event);
         }
 
+        mWeekHeaderView = (WeekHeaderView) findViewById(R.id.weekHeader);
         mWeekView = (WeekView) findViewById(R.id.week);
 
         mWeekView.setEvents(events);

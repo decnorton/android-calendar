@@ -9,8 +9,9 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.util.AttributeSet;
-import android.view.MotionEvent;
+import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
@@ -24,7 +25,7 @@ import java.util.List;
  * TODO: Scaling
  *
  */
-public class DayView extends View {
+public class DayView extends ViewGroup implements View.OnClickListener {
     private static final String TAG = "DayView";
 
     private Context mContext;
@@ -47,14 +48,14 @@ public class DayView extends View {
     private static int TIMELINE_HOUR_PADDING_V = TIMELINE_HOUR_PADDING_TOP + TIMELINE_HOUR_PADDING_BOTTOM;
     private static float TIMELINE_TEXT_SIZE = 12;
 
-    // Event
-    private static int EVENT_PADDING_TOP = 2;
-    private static int EVENT_PADDING_BOTTOM = 2;
-    private static int EVENT_PADDING_LEFT = 4;
-    private static int EVENT_PADDING_RIGHT = 4;
-
     // Current time
     private static int CURRENT_TIME_WIDTH = 2;
+
+    /**
+     * Colours
+     */
+    private static int GRID_COLOUR_HORIZONTAL;
+    private static int GRID_COLOUR_VERTICAL;
 
     /**
      * Data
@@ -110,41 +111,44 @@ public class DayView extends View {
     public DayView(Context context) {
         super(context);
 
-        init(context, null);
+        init(context, null, null);
     }
 
     public DayView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        init(context, null);
+        init(context, null, null);
         initAttributes(attrs);
     }
 
     public DayView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
 
-        init(context, null);
+        init(context, null, null);
         initAttributes(attrs);
     }
 
-    public DayView(Context context, DateTime day) {
+    public DayView(Context context, DateTime day, List<Event> events) {
         super(context);
-        init(context, day);
+
+        init(context, day, events);
     }
 
-    private void init(Context context, DateTime date) {
+    private void init(Context context, DateTime date, List<Event> events) {
         mContext = context;
-        mDay = date == null ? new DateTime().withTimeAtStartOfDay() : date.withTimeAtStartOfDay();
+        mDay = date == null
+                ? new DateTime().withTimeAtStartOfDay()
+                : date.withTimeAtStartOfDay();
+
+        mEvents = events != null ? events : new ArrayList<Event>();
+
+        // Allow onDraw
+        setWillNotDraw(false);
 
         calculateTodayInterval();
 
         // getDimension() handles scaling for us
         PADDING_TOP = getDimension(R.dimen.day_padding_top);
-
-        EVENT_PADDING_TOP = getDimension(R.dimen.day_event_padding_top);
-        EVENT_PADDING_BOTTOM = getDimension(R.dimen.day_event_padding_bottom);
-        EVENT_PADDING_LEFT = getDimension(R.dimen.day_event_padding_left);
-        EVENT_PADDING_RIGHT = getDimension(R.dimen.day_event_padding_right);
 
         TIMELINE_TEXT_SIZE = getDimension(R.dimen.timeline_text_size);
         TIMELINE_HOUR_PADDING_TOP = getDimension(R.dimen.timeline_hour_padding_top);
@@ -168,6 +172,45 @@ public class DayView extends View {
                 // Calculate scaled values
             }
         }
+
+        // Colours
+        GRID_COLOUR_HORIZONTAL = getColor(R.color.grid_horizontal);
+        GRID_COLOUR_VERTICAL = getColor(R.color.grid_vertical);
+
+        if (isInEditMode()) {
+            initDebug();
+        }
+
+        createEventViews();
+    }
+
+    private void initDebug() {
+        DateTime now = new DateTime().withMinuteOfHour(0);
+
+        DateTime[] starts = {
+                now.minusDays(1),
+                now.plusHours(1),
+                now.plusDays(1).plusHours(2),
+                now.plusDays(2).minusHours(4).plusMinutes(20),
+                now.plusDays(3).minusHours(2),
+                now.plusDays(4).minusHours(1),
+        };
+
+        DateTime[] ends = {
+                starts[0].plusHours(1),
+                starts[1].plusHours(1).plusMinutes(30),
+                starts[2].plusMinutes(20),
+                starts[3].plusMinutes(45),
+                starts[4].plusHours(1),
+                starts[5].plusDays(1).minusHours(3)
+        };
+
+        for (int i = 0; i < starts.length; i ++) {
+            Event event = new Event(i, getResources().getColor(R.color.event_blue), "#" + i, "Location #" + i, false, starts[i], ends[i]);
+            mEvents.add(event);
+        }
+
+        createEventViews();
     }
 
     private void initAttributes(AttributeSet attributes) {
@@ -194,10 +237,20 @@ public class DayView extends View {
 
     public void setEvents(List<Event> events) {
         mEvents = events;
+
+        createEventViews();
+    }
+
+    public void refresh() {
+        createEventViews();
     }
 
     private int getDimension(int resId) {
         return (int) getResources().getDimension(resId);
+    }
+
+    private int getColor(int resId) {
+        return (int) getResources().getColor(resId);
     }
 
     @Override
@@ -263,7 +316,6 @@ public class DayView extends View {
         return getStageTop() + (getStageHeight() * ((float) minute / (float) DAY_MINUTES));
     }
 
-
     public DateTime getDate() {
         return mDay;
     }
@@ -281,6 +333,33 @@ public class DayView extends View {
                 : null;
     }
 
+    private void createEventViews() {
+        removeAllViewsInLayout();
+        mEventViews.clear();
+
+        for (Event event : mEvents) {
+            Interval eventInterval = new Interval(event.getStart(), event.getEnd());
+
+            if (!eventInterval.overlaps(mToday)) {
+                Log.i(TAG, "[createEventViews] Not today");
+                continue;
+            }
+
+            EventView eventView = new EventView(mContext, event);
+            eventView.setOnClickListener(this);
+            mEventViews.add(eventView);
+
+            // Add to the hierarchy
+            addView(eventView);
+        }
+
+        Log.i(TAG, "[createEventViews] " + mEvents.size() + " Events");
+        Log.i(TAG, "[createEventViews] " + mEventViews.size() + " EventViews");
+
+        requestLayout();
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -296,9 +375,6 @@ public class DayView extends View {
 
         // Draw the greyed-out background
         drawCurrentTimeBackground(mRect, canvas, mPaint);
-
-        // Draw events
-        drawEvents(mRect, canvas, mPaint);
 
         // Draw a line for the current time
         drawCurrentTimeLine(mRect, canvas, mPaint);
@@ -320,7 +396,7 @@ public class DayView extends View {
             mLines[linesIndex++] = y; // y1
         }
 
-        paint.setColor(Color.BLACK);
+        paint.setColor(GRID_COLOUR_HORIZONTAL);
         paint.setStrokeWidth(CELL_GAP);
 
         // Draw our lines
@@ -352,70 +428,9 @@ public class DayView extends View {
         }
     }
 
-    private void drawEvents(Rect rect, Canvas canvas, Paint paint) {
-        for (Event event : mEvents) {
-            drawEvent(event, rect, canvas, paint);
-        }
-    }
-
-    private void drawEvent(Event event, Rect rect, Canvas canvas, Paint paint) {
-        // Get the event bounds
-        Rect bounds = computeEventBounds(event);
-
-        if (bounds == null) {
-            // Event shouldn't be here
-            return;
-        }
-
-        // Save the previous style
-        Paint.Style savedStyle = paint.getStyle();
-
-        Paint bgPaint = new Paint();
-
-        // Darken the background colour if selected
-        int backgroundColour = event.equals(mSelectedEvent)
-                ? ColorUtils.darken(event.getColor(), 0.8f)
-                : event.getColor();
-
-        bgPaint.setStyle(Paint.Style.FILL);
-        bgPaint.setColor(backgroundColour);
-
-        // Draw the background onto our canvas
-        canvas.drawRect(bounds, bgPaint);
-
-        // Set up title paint
-        paint.setColor(Color.WHITE);
-        paint.setTextAlign(Paint.Align.LEFT);
-        paint.setTextSize(TIMELINE_TEXT_SIZE);
-        paint.setTypeface(Typeface.DEFAULT);
-        paint.setAntiAlias(true);
-
-        // Get the text bounds
-        Rect textBounds = new Rect();
-        paint.getTextBounds(event.getTitle(), 0, event.getTitle().length(), textBounds);
-
-        int x = bounds.left + EVENT_PADDING_LEFT;
-        int y = bounds.top + EVENT_PADDING_TOP + textBounds.height();
-
-        // Check we have enough room in the container
-        if (bounds.height() > textBounds.height() + EVENT_PADDING_TOP + EVENT_PADDING_BOTTOM) {
-            // Draw the text
-            canvas.drawText(event.getTitle(), x, y, paint);
-        }
-
-        // Restore the style
-        paint.setStyle(savedStyle);
-    }
-
     private Rect computeEventBounds(Event event) {
         DateTime start = event.getStart();
         DateTime end = event.getEnd();
-
-        Interval eventInterval = new Interval(start, end);
-
-        if (!eventInterval.overlaps(mToday)) {
-            return null;
-        }
 
         int startMinute;
         int endMinute;
@@ -513,42 +528,17 @@ public class DayView extends View {
 
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
+        mRect.set(l, t, r, b);
 
-    }
+        Log.i(TAG, "[onLayout] " + mEventViews.size());
 
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        int action = event.getAction();
+        for (EventView eventView : mEventViews) {
+            Event event = eventView.getEvent();
 
-        switch (action) {
-
-            case MotionEvent.ACTION_DOWN:
-                return true;
-
-            case MotionEvent.ACTION_UP:
-                mSelectedEvent = findEventFromPosition(Math.round(event.getX()), Math.round(event.getY()));
-
-                dispatchEventClicked(mSelectedEvent);
-
-                invalidate();
-
-                return true;
-
-        }
-
-        return super.onTouchEvent(event);
-    }
-
-    private Event findEventFromPosition(int x, int y) {
-        for (Event event : mEvents) {
             Rect bounds = computeEventBounds(event);
-
-            if (bounds != null && bounds.contains(x, y)) {
-                return event;
-            }
+            eventView.layout(bounds.left, bounds.top, bounds.right, bounds.bottom);
         }
 
-        return null;
     }
 
     public void setSelectedEvent(Event event) {
@@ -580,4 +570,13 @@ public class DayView extends View {
         public void onEventSelected(DayView view, Event event);
     }
 
+    @Override
+    public void onClick(View v) {
+        if (v instanceof EventView) {
+            Event event = ((EventView) v).getEvent();
+
+            dispatchEventClicked(event);
+
+        }
+    }
 }

@@ -7,4 +7,9 @@
     <color name="event_green">#6EE893</color>
     <color name="event_yellow">#FFF079</color>
 
+    <color name="grid_horizontal">#454545</color>
+    <color name="grid_vertical">#454545</color>
+
+    <color name="week_header_background">#88FFFFFF</color>
+
 </resources>

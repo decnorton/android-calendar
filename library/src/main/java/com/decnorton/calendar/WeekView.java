@@ -2,6 +2,7 @@ package com.decnorton.calendar;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -38,23 +39,29 @@ public class WeekView extends ViewGroup implements DayView.OnEventClickedListene
     private List<Event> mEvents = new ArrayList<>();
     private Event mSelectedEvent;
     private DateTime mNow = new DateTime();
-    private DateTime mFirstDay = TimeUtils.getFirstDayOfWeek(new DateTime());
-    private int mDayWidth;
-    private int mFirstDayWidth;
-    private OnEventClickedListener mEventSelectedListener;
+    private DateTime mFirstDayOfWeek = TimeUtils.getFirstDayOfWeek(new DateTime());
+    private int[] mDayWidths;
+
+    /**
+     * Listeners
+     */
+    private OnEventClickedListener mEventClickedListener;
 
     public WeekView(Context context) {
         super(context);
+
         init(context);
     }
 
     public WeekView(Context context, AttributeSet attrs) {
         super(context, attrs);
+
         init(context);
     }
 
     public WeekView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
+
         init(context);
     }
 
@@ -62,12 +69,11 @@ public class WeekView extends ViewGroup implements DayView.OnEventClickedListene
         mContext = context;
 
         mDayViews = new DayView[WEEK_DAYS];
-        DateTime date = mFirstDay;
+        DateTime date = mFirstDayOfWeek;
 
         for (int day = 0; day < WEEK_DAYS; day++) {
-            DayView view = new DayView(context, date);
+            DayView view = new DayView(context, date, mEvents);
 
-            view.setEvents(mEvents);
             view.setOnEventClickedListener(this);
             view.setShowTimeline(day == 0);
 
@@ -113,7 +119,24 @@ public class WeekView extends ViewGroup implements DayView.OnEventClickedListene
             mEvents.add(event);
         }
 
-//        invalidate();
+        refreshDayViews();
+    }
+
+    private int getDimension(int resId) {
+        return (int) getResources().getDimension(resId);
+    }
+
+    public DateTime getFirstDayOfWeek() {
+        return mFirstDayOfWeek;
+    }
+
+    public int getDayWidth(int day) {
+        return mDayWidths[day];
+    }
+
+    @Override
+    protected int getSuggestedMinimumHeight() {
+        return mDayViews[0].getSuggestedMinimumHeight();
     }
 
     public List<Event> getEvents() {
@@ -121,22 +144,12 @@ public class WeekView extends ViewGroup implements DayView.OnEventClickedListene
     }
 
     public void setEvents(List<Event> events) {
+        Log.i(TAG, "[setEvents] " + events.size() + " events");
+
         mEvents.clear();
         mEvents.addAll(events);
 
-        invalidateDayViews();
-    }
-
-    private void calculateDayWidth(int width) {
-        int timelineWidth = DayView.getTimelineWidth();
-
-        mDayWidth = (width - timelineWidth) / WEEK_DAYS;
-        mFirstDayWidth = mDayWidth + timelineWidth;
-    }
-
-    @Override
-    protected int getSuggestedMinimumHeight() {
-        return mDayViews[0].getSuggestedMinimumHeight();
+        refreshDayViews();
     }
 
     @Override
@@ -146,32 +159,34 @@ public class WeekView extends ViewGroup implements DayView.OnEventClickedListene
         calculateDayWidth(getMeasuredWidth());
     }
 
+    private void calculateDayWidth(int width) {
+        mDayWidths = WeekUtils.calculateDayWidths(width, DayView.getTimelineWidth());
+    }
+
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         int startX = 0;
-        int stopX = mFirstDayWidth;
+        int stopX = 0;
+        int startY = 0;
+        int stopY = getHeight();
 
-        for (int i = 0; i < getChildCount(); i++) {
-            View child = getChildAt(i);
+        for (int day = 0; day < mDayViews.length; day++) {
+            View child = mDayViews[day];
 
             if (child == null)
                 continue;
 
-            child.layout(startX, 0, stopX, getHeight());
+            stopX += getDayWidth(day);
 
-            if (i == 0) {
-                startX += mFirstDayWidth;
-            } else {
-                startX += mDayWidth;
-            }
+            child.layout(startX, startY, stopX, stopY);
 
-            stopX += mDayWidth;
+            startX += getDayWidth(day);
         }
     }
 
-    private void invalidateDayViews() {
+    private void refreshDayViews() {
         for (DayView dayView : mDayViews) {
-            dayView.invalidate();
+            dayView.refresh();
         }
     }
 
@@ -191,14 +206,14 @@ public class WeekView extends ViewGroup implements DayView.OnEventClickedListene
     }
 
     protected void dispatchEventClicked(Event event) {
-        if (mEventSelectedListener == null)
+        if (mEventClickedListener == null)
             return;
 
-        mEventSelectedListener.onEventClicked(this, event);
+        mEventClickedListener.onEventClicked(this, event);
     }
 
     public void setOnEventClickedListener(OnEventClickedListener listener) {
-        mEventSelectedListener = listener;
+        mEventClickedListener = listener;
     }
 
     public interface OnEventClickedListener {
