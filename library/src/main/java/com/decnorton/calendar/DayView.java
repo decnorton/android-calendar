@@ -356,7 +356,7 @@ public class DayView extends ViewGroup implements View.OnClickListener {
         Log.i(TAG, "[createEventViews] " + mEvents.size() + " Events");
         Log.i(TAG, "[createEventViews] " + mEventViews.size() + " EventViews");
 
-        requestLayout();
+        forceLayout();
         invalidate();
     }
 
@@ -450,6 +450,7 @@ public class DayView extends ViewGroup implements View.OnClickListener {
         } else if (end.isAfter(mDay)) {
             endMinute = DAY_MINUTES;
         } else {
+            Log.i(TAG, "[computeEventBounds] Not same day and is before now - not drawing");
             // Not same day and before now - don't draw
             return null;
         }
