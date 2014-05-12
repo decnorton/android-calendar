@@ -63,4 +63,20 @@ public class Event {
 
         return super.equals(o);
     }
+
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("{");
+
+        builder.append(" id : " + id);
+        builder.append(" color : " + color);
+        builder.append(" title : " + title);
+        builder.append(" location : " + location);
+        builder.append(" isAllDay : " + isAllDay);
+        builder.append(" start : " + start);
+        builder.append( "end : " + end);
+
+        builder.append(" }");
+        return builder.toString();
+    }
 }
