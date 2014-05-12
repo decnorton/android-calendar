@@ -5,7 +5,8 @@
 
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:paddingTop="@dimen/week_header_height">
 
         <com.decnorton.calendar.WeekView
             android:id="@+id/week"
@@ -16,8 +17,8 @@
 
     <com.decnorton.calendar.WeekHeaderView
         android:id="@+id/weekHeader"
-        android:background="@color/week_header_background"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:background="@color/week_header_background" />
 
 </FrameLayout>
